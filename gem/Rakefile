@@ -1,0 +1,81 @@
+require "fileutils"
+
+task :default => :build
+
+ASSETS = {
+  File.expand_path("../../js/blueimp-gallery.js", __FILE__) => File.expand_path("../vendor/assets/javascripts", __FILE__),
+  File.expand_path("../../css/blueimp-gallery.css", __FILE__) => File.expand_path("../vendor/assets/stylesheets", __FILE__)
+}
+
+Dir[File.expand_path("../../img/*", __FILE__)].each do |image|
+  ASSETS[image] = File.expand_path("../vendor/assets/images", __FILE__)
+end
+
+task :copy_assets do
+  ASSETS.each do |source, destination|
+    unless File.directory? destination
+      FileUtils.mkpath destination
+    end
+
+    FileUtils.cp source, destination
+  end
+end
+
+task :create_version do
+  version = current_version
+  path = File.expand_path "../lib/blueimp-gallery-rails", __FILE__
+  FileUtils.mkpath path
+  File.write File.join(path, "version.rb"), %{# This is a generated file.
+module Blueimp
+  module Gallery
+    module Rails
+      class Version
+        class << self
+          def to_s
+            "#{version}"
+          end
+        end
+      end
+    end
+  end
+end
+}
+end
+
+task :update_css => :copy_assets do
+  Dir[File.expand_path("../vendor/assets/stylesheets/*.css", __FILE__)].each do |css|
+    path = "#{css}.scss"
+    FileUtils.move css, path
+    contents = File.read path
+    contents.gsub! /url\(\.\.\/img\/\s*([^)]*)\s*\)/, 'image-url("\1")'
+    File.write path, contents
+  end
+end
+
+task :generate => [:copy_assets, :update_css, :create_version]
+
+task :build => :generate do
+  system_exec "gem build blueimp-gallery-rails.gemspec"
+end
+
+task :install => :build do
+  system_exec "gem install --no-ri --no-rdoc blueimp-gallery-rails-#{current_version}.gem"
+end
+
+task :push => :build do
+  system_exec "gem push blueimp-gallery-rails-#{current_version}.gem"
+end
+
+def system_exec(cmd)
+  puts "Running: #{cmd}"
+  puts %x[#{cmd}]
+end
+
+def current_version
+  return @version if @version
+  @version = `git describe --exact-match --tags HEAD`.strip
+  return @version if @version =~ /^\d+\.\d+\.\d+$/
+  system_exec "git describe --exact-match --tags HEAD"
+  STDOUT.print "What is the current version? "
+  @version = STDIN.gets.strip
+end

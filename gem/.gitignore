@@ -1,0 +1,5 @@
+blueimp-gallery-rails-*.gem
+lib/blueimp-gallery-rails/version.rb
+vendor/assets/javascripts/*
+vendor/assets/images/*
+vendor/assets/stylesheets/*
